@@ -17,7 +17,8 @@ from config import Config
 from torch.nn import DataParallel
 from collections import Counter  # --- 예측 분포 추가 ---
 import matplotlib
-
+from PIL import Image
+from torchvision import transforms as T
 matplotlib.use('Agg') 
 
 import matplotlib.pyplot as plt
@@ -509,6 +510,22 @@ def lfw_test(model, img_paths, identity_list, compair_list, batch_size):
     print('lfw face verification accuracy: ', acc, 'threshold: ', th)
     return acc
 
+def prepare_single_image(image_path, input_shape=(1, 128, 128)):
+    img = Image.open(image_path).convert('L')
+
+    normalize = T.Normalize(mean=[0.5], std=[0.5])
+    transforms = T.Compose([
+        T.CenterCrop(input_shape[1:]), 
+        T.ToTensor(),                 
+        normalize                      
+    ])
+
+    img_tensor = transforms(img)  # 결과 크기: [1, 128, 128]
+
+    img_tensor = img_tensor.unsqueeze(0)  
+    
+    return img_tensor
+
 if __name__ == '__main__':
     opt = Config()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -517,49 +534,73 @@ if __name__ == '__main__':
     backbone, metric_fc = load_train_model(opt, device)
     print("모델 로딩 완료")
 
-    print("데이터셋 준비 중...")
-    db_dataset = Dataset(opt.train_root, opt.train_list, phase='test', input_shape=opt.input_shape)
-    db_dataloader = data.DataLoader(db_dataset,
-                                    shuffle=False,
-                                  batch_size=opt.train_batch_size,
-                                  num_workers=opt.num_workers)
+    # print("데이터셋 준비 중...")
+    # db_dataset = Dataset(opt.train_root, opt.train_list, phase='test', input_shape=opt.input_shape)
+    # db_dataloader = data.DataLoader(db_dataset,
+    #                                 shuffle=False,
+    #                               batch_size=opt.train_batch_size,
+    #                               num_workers=opt.num_workers)
     
-    test_dataset = Dataset(opt.test_root, opt.test_list, phase='test', input_shape=opt.input_shape)
-    test_dataloader = data.DataLoader(test_dataset,
-                                      shuffle=False,
-                                      batch_size=opt.test_batch_size,
-                                      num_workers=opt.num_workers)
-    print("데이터셋 준비 완료...\n")
+    # test_dataset = Dataset(opt.test_root, opt.test_list, phase='test', input_shape=opt.input_shape)
+    # test_dataloader = data.DataLoader(test_dataset,
+    #                                   shuffle=False,
+    #                                   batch_size=opt.test_batch_size,
+    #                                   num_workers=opt.num_workers)
+    # print("데이터셋 준비 완료...\n")
 
-    # --- 테스트 및 혼동 행렬 시각화 ---
-    print("================ 1번 테스트 (DB Best Fit) ================")
-    t1_correct, t1_total, t1_acc, t1_counts, t1_targets, t1_preds = test_best_fit_in_db(device=device, model=backbone, test_loader=test_dataloader, db_loader=db_dataloader)
-    save_confusion_matrix(t1_targets, t1_preds, CLASS_NAMES, "Test 1_DB Best Fit Confusion Matrix")
+    # # --- 테스트 및 혼동 행렬 시각화 ---
+    # print("================ 1번 테스트 (DB Best Fit) ================")
+    # t1_correct, t1_total, t1_acc, t1_counts, t1_targets, t1_preds = test_best_fit_in_db(device=device, model=backbone, test_loader=test_dataloader, db_loader=db_dataloader)
+    # save_confusion_matrix(t1_targets, t1_preds, CLASS_NAMES, "Test 1_DB Best Fit Confusion Matrix")
     
-    print("\n================ 2번 테스트 (DB Average Best Fit) ================")
-    t2_correct, t2_total, t2_acc, t2_counts, t2_targets, t2_preds = test_ave_best_fit_in_db(device=device, model=backbone, db_loader=db_dataloader, test_loader=test_dataloader)
-    save_confusion_matrix(t2_targets, t2_preds, CLASS_NAMES, "Test 2_DB Average Best Fit Confusion Matrix")
+    # print("\n================ 2번 테스트 (DB Average Best Fit) ================")
+    # t2_correct, t2_total, t2_acc, t2_counts, t2_targets, t2_preds = test_ave_best_fit_in_db(device=device, model=backbone, db_loader=db_dataloader, test_loader=test_dataloader)
+    # save_confusion_matrix(t2_targets, t2_preds, CLASS_NAMES, "Test 2_DB Average Best Fit Confusion Matrix")
     
-    print("\n================ 3번 테스트 (Trained FC Layer) ================")
-    t3_correct, t3_total, t3_acc, t3_counts, t3_targets, t3_preds = test_trained_fc_layer(device=device, model=backbone, metric_fc=metric_fc, test_dataloader=test_dataloader)
-    save_confusion_matrix(t3_targets, t3_preds, CLASS_NAMES, "Test 3_Trained FC Layer Confusion Matrix")
+    # print("\n================ 3번 테스트 (Trained FC Layer) ================")
+    # t3_correct, t3_total, t3_acc, t3_counts, t3_targets, t3_preds = test_trained_fc_layer(device=device, model=backbone, metric_fc=metric_fc, test_dataloader=test_dataloader)
+    # save_confusion_matrix(t3_targets, t3_preds, CLASS_NAMES, "Test 3_Trained FC Layer Confusion Matrix")
     
-    # --- 각 테스트 별 예측 분포 출력 ---
-    print_distribution(t1_counts, "1번 테스트 (DB Best Fit)")
-    print_distribution(t2_counts, "2번 테스트 (DB Average Best Fit)")
-    print_distribution(t3_counts, "3번 테스트 (Trained FC Layer)")
+    # # --- 각 테스트 별 예측 분포 출력 ---
+    # print_distribution(t1_counts, "1번 테스트 (DB Best Fit)")
+    # print_distribution(t2_counts, "2번 테스트 (DB Average Best Fit)")
+    # print_distribution(t3_counts, "3번 테스트 (Trained FC Layer)")
 
-    print("=== 각각의 테스트 정확도 ===")
-    print(f'Test1 최종 정확도: {t1_correct}/{t1_total} = {t1_acc:.4f}')
-    print(f'Test2 최종 정확도: {t2_correct}/{t2_total} = {t2_acc:.4f}')
-    print(f'Test3 최종 정확도: {t3_correct}/{t3_total} = {t3_acc:.4f}')
+    # print("=== 각각의 테스트 정확도 ===")
+    # print(f'Test1 최종 정확도: {t1_correct}/{t1_total} = {t1_acc:.4f}')
+    # print(f'Test2 최종 정확도: {t2_correct}/{t2_total} = {t2_acc:.4f}')
+    # print(f'Test3 최종 정확도: {t3_correct}/{t3_total} = {t3_acc:.4f}')
 
-    visualize_features_with_tsne_server(device=device, 
-                                 model=backbone, 
-                                 dataloader=test_dataloader, 
-                                 title="Test Dataset t-SNE Distribution")
+    # visualize_features_with_tsne_server(device=device, 
+    #                              model=backbone, 
+    #                              dataloader=test_dataloader, 
+    #                              title="Test Dataset t-SNE Distribution")
     
-    testList = [t1_acc, t2_acc, t3_acc]
-    bestAcc = max(testList)
-    bestAccIdx = testList.index(bestAcc)
-    print(f"\nBest Test : Test {bestAccIdx+1} \t ACC : {testList[bestAccIdx]:.4f}")
+    # testList = [t1_acc, t2_acc, t3_acc]
+    # bestAcc = max(testList)
+    # bestAccIdx = testList.index(bestAcc)
+    # print(f"\nBest Test : Test {bestAccIdx+1} \t ACC : {testList[bestAccIdx]:.4f}")
+
+    #====================사진 1장만 라벨 추출====================
+    my_face = "/data/wsx1386/repos/faceInterection/arcface-pytorch/data/Datasets/faceValidationImage/해커/해커-1.webp"
+    input = prepare_single_image(my_face).to(device)
+
+    with torch.no_grad() :
+        feature = backbone(input)
+        output = metric_fc(feature, label = None)
+
+        prob = F.softmax(output, dim=1)
+        pred = torch.argmax(prob, dim=1)
+
+        prob_np = prob.cpu().numpy()[0]
+        pred_cls_idx = pred.cpu().item()
+
+    print(f"예측 클래스 : {CLASS_NAMES[pred_cls_idx]}\n")
+    print(f"{'클래스 이름':20s} | {'확률 그래프 (0% ~ 100%)':50s} | 확률값")
+    print("-" * 85)
+
+    sorted_idx = np.argsort(prob_np)[::-1]
+
+    for k in sorted_idx:
+        bar = '█' * int(prob_np[k] * 50)
+        print(f'{CLASS_NAMES[k]:20s} | {bar:50s} | {prob_np[k]: .4f}')
